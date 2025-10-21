@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MMR Overlay</title>
+<style>
+  html,body { height:100%; margin:0; background:transparent; }
+  body{ display:flex; align-items:center; justify-content:center; font-family:Segoe UI, Roboto, Arial, sans-serif; }
+  .card{
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    background: rgba(0,0,0,0.25);
+    padding:12px 18px;
+    border-radius:10px;
+    display:inline-flex;
+    align-items:center;
+    gap:12px;
+    min-width:220px;
+  }
+  .icon{ font-size:20px; }
+  .mmr{ font-size:28px; font-weight:700; color:#fff; }
+  .delta{ font-size:14px; color:#d0ffd0; opacity:0.95; }
+  .down{ color:#ffb3b3; }
+  .rank{ font-size:12px; color:#fff8; }
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="icon">🏆</div>
+    <div>
+      <div class="mmr" id="mmr">—</div>
+      <div class="delta" id="delta"></div>
+      <div class="rank" id="rank"></div>
+    </div>
+  </div>
+
+<script>
+const steamId = "76561198327337292";
+const apiUrl = `https://api.opendota.com/api/players/${steamId}`;
+let lastMMR = null;
+
+async function fetchMMR(){
+  try{
+    const res = await fetch(apiUrl);
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    // prefer solo_mmr if available, otherwise mmr_estimate
+    const mmr = data.solo_mmr || (data.mmr_estimate && data.mmr_estimate.estimate) || null;
+    const rank_tier = data.rank_tier || null;
+    update(mmr, rank_tier);
+  }catch(err){
+    document.getElementById('mmr').textContent = 'N/A';
+    document.getElementById('delta').textContent = 'API error';
+    console.warn(err);
+  }
+}
+
+function prettyRank(tier){
+  if(!tier) return '';
+  const stars = tier % 10;
+  const medal = Math.floor(tier/10);
+  const names = ['','Herald','Guardian','Crusader','Archon','Legend','Ancient','Divine','Immortal'];
+  return names[medal] ? `${names[medal]} ${stars ? stars : ''}`.trim() : '';
+}
+
+function update(mmr, rankTier){
+  const mmrEl = document.getElementById('mmr');
+  const deltaEl = document.getElementById('delta');
+  const rankEl = document.getElementById('rank');
+  if(mmr === null){
+    mmrEl.textContent = '—';
+    deltaEl.textContent = '';
+    rankEl.textContent = '';
+    return;
+  }
+  mmrEl.textContent = mmr;
+  if(lastMMR !== null){
+    const diff = mmr - lastMMR;
+    if(diff > 0){
+      deltaEl.textContent = `+${diff}`;
+      deltaEl.classList.remove('down');
+    } else if(diff < 0){
+      deltaEl.textContent = `${diff}`;
+      deltaEl.classList.add('down');
+    } else {
+      deltaEl.textContent = '';
+    }
+  }
+  lastMMR = mmr;
+  rankEl.textContent = prettyRank(rankTier);
+}
+
+// initial fetch and then every 20 seconds
+fetchMMR();
+setInterval(fetchMMR, 20000);
+
+// make background transparent when embedded in OBS
+document.documentElement.style.background = 'transparent';
+</script>
+</body>
+</html>
